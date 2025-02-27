@@ -89,7 +89,7 @@ pub fn staticStringMapBench(allocator: Allocator, writer: anytype) !void {
     var tokens = try generateTokens(allocator, data);
     defer tokens.deinit();
 
-    const Tag = enum {
+    const Tag = enum(u32) {
         keyword_addrspace,
         keyword_align,
         keyword_allowzero,
@@ -199,20 +199,29 @@ pub fn staticStringMapBench(allocator: Allocator, writer: anytype) !void {
 
     var hits: u32 = 0;
     var misses: u32 = 0;
+    var histogram = std.mem.zeroes([@typeInfo(Tag).@"enum".fields.len]u32);
 
     var timer = std.time.Timer.start() catch @panic("need timer to work");
 
     const start_time = timer.read();
 
     for (tokens.items) |token| {
-        if (keywords.get(token) != null) {
+        if (keywords.get(token)) |kw| {
             hits += 1;
+            histogram[@intFromEnum(kw)] += 1;
         } else {
             misses += 1;
         }
     }
 
     const end_time = timer.read();
+
+    for (histogram, 0..) |count, i| {
+        if (count > 1000) {
+            const kw: Tag = @enumFromInt(i);
+            try writer.print("keyword {} used {} times\n", .{ kw, count });
+        }
+    }
 
     const elapsed_time_us = (end_time - start_time) / 1000;
     const per_item_ns = (end_time - start_time) / tokens.items.len;
@@ -229,9 +238,19 @@ const lib = @import("zbench_lib");
 //  So far:
 //  zig build run -Doptimize=ReleaseFast
 //
-// benchmarking zig std library:
+// benchmarking zig std library (3MiB of it):
 // staticStringMap: wall = 3923 uS,  per item = 17 nS, miss/hit = 3
 //
 // benchmarking zig std library:
 // staticStringMap: wall = 4340 uS,  per item = 19 nS, miss/hit = 3
 //
+// Notes
+// The current input dataset:
+// - zero hits:
+//   anyframe, async, await, export, resume, linksection, suspend and usingnamespace.
+// - less than 10:
+//   addrsspace, allowzero, noinline, nosuspend, opaque, threadlocal
+// - const vs var
+//   var 1672 and cost 10644 times
+// - most common
+//   const 10k, pub 7.5k, return 5.5k, try 5.3k, fn 3.3k, if 2.7k, error 2.1k, else 1.8k.
