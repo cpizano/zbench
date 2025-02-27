@@ -49,18 +49,10 @@ pub fn staticStringMapBench(allocator: Allocator) !void {
     var comments: u32 = 0;
     var code: u32 = 0;
 
-    var stop: u32 = 200;
-
     var tokens = std.mem.splitAny(u8, data, &delimiters);
     while (tokens.next()) |token| {
         if (token.len == 0)
             continue;
-
-        if (stop > 0) {
-            stop -= 1;
-        } else {
-            break;
-        }
 
         sw: switch (state) {
             .Code => {
