@@ -199,37 +199,41 @@ pub fn staticStringMapBench(allocator: Allocator, writer: anytype) !void {
 
     var hits: u32 = 0;
     var misses: u32 = 0;
-    var histogram = std.mem.zeroes([@typeInfo(Tag).@"enum".fields.len]u32);
+    var kw_histogram = std.mem.zeroes([@typeInfo(Tag).@"enum".fields.len]u32);
 
+    var stats = try lib.StatsFilter(u64).init();
     var timer = std.time.Timer.start() catch @panic("need timer to work");
 
-    const start_time = timer.read();
+    for (0..10) |_| {
+        const start = timer.read();
 
-    for (tokens.items) |token| {
-        if (keywords.get(token)) |kw| {
-            hits += 1;
-            histogram[@intFromEnum(kw)] += 1;
-        } else {
-            misses += 1;
+        for (tokens.items) |token| {
+            if (keywords.get(token)) |kw| {
+                hits += 1;
+                kw_histogram[@intFromEnum(kw)] += 1;
+            } else {
+                misses += 1;
+            }
         }
+        const duration = timer.read() - start;
+        stats.add_sample(duration);
     }
 
-    const end_time = timer.read();
-
-    for (histogram, 0..) |count, i| {
+    // The historgram, besides giving interesting data, blocks the compiler from optimizing
+    // the code under test down to nothing.
+    for (kw_histogram, 0..) |count, i| {
         if (count > 1000) {
             const kw: Tag = @enumFromInt(i);
-            try writer.print("keyword {} used {} times\n", .{ kw, count });
+            std.log.info("keyword {} used {} times\n", .{ kw, count });
         }
     }
-
-    const elapsed_time_us = (end_time - start_time) / 1000;
-    const per_item_ns = (end_time - start_time) / tokens.items.len;
-
     std.log.info("keyword:  hits {}, misses", .{ hits, misses });
 
-    try writer.print("staticStringMap: wall = {} uS,  per item = {} nS, miss/hit ratio = {} \n", //.
-        .{ elapsed_time_us, per_item_ns, misses / hits });
+    const average = stats.calc_average();
+    const per_item_ns = (average) / @as(f64, @floatFromInt(tokens.items.len));
+
+    try writer.print("staticStringMap: wall avg = {d:.2} uS,  per item = {d:.2} nS, miss/hit ratio = {} \n", //.
+        .{ average / 1000.0, per_item_ns, misses / hits });
 }
 
 const std = @import("std");
