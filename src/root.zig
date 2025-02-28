@@ -13,46 +13,51 @@ pub fn StatsFilter(comptime T: type) type {
     }
 
     return struct {
-        const capacity = 7;
+        const capacity = 8;
         const Self = @This();
         samples: std.BoundedArray(T, capacity),
+        sum: T,
 
         pub fn init() !Self {
-            return .{ .samples = try std.BoundedArray(T, capacity).init(0) };
+            return .{
+                .samples = try std.BoundedArray(T, capacity).init(0),
+                .sum = 0,
+            };
         }
 
         pub fn add_sample(self: *Self, sample: T) void {
             switch (self.samples.slice().len) {
                 0...capacity - 1 => {
                     self.samples.append(sample) catch @panic("err");
+                    self.sum += sample;
                 },
                 capacity => {
-                    self.replace_sample(sample);
+                    self.maybe_replace_sample(sample);
                 },
                 else => @panic("whoa!"),
             }
         }
 
         pub fn calc_average(self: *Self) f64 {
-            var sum: T = 0;
-            for (self.samples.constSlice()) |s| {
-                sum += s;
-            }
-            return @as(f64, @floatFromInt(sum)) / @as(f64, @floatFromInt(self.samples.slice().len));
+            return @as(f64, @floatFromInt(self.sum)) / @as(f64, @floatFromInt(self.samples.slice().len));
         }
 
-        fn replace_sample(self: *Self, sample: T) void {
-            var max_dev: T = 0;
-            var max_dev_ix: ?usize = null;
+        // Replace the sample that has the largest variance compared with
+        // the variance of the new sample.
+        fn maybe_replace_sample(self: *Self, new_sample: T) void {
+            const average = self.sum / self.samples.slice().len;
+            var nsd: T = @abs(average - new_sample);
+            var nsd_ix: ?usize = null;
             for (self.samples.slice(), 0..) |s, i| {
-                const dev = @abs(sample - s);
-                if (dev > max_dev) {
-                    max_dev = dev;
-                    max_dev_ix = i;
+                const dev = @abs(average - s);
+                if (dev > nsd) {
+                    nsd = dev;
+                    nsd_ix = i;
                 }
             }
-            if (max_dev_ix) |ix| {
-                self.samples.slice()[ix] = sample;
+            if (nsd_ix) |ix| {
+                self.sum += new_sample - self.samples.slice()[ix];
+                self.samples.slice()[ix] = new_sample;
             }
         }
 

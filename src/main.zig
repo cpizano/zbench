@@ -204,7 +204,7 @@ pub fn staticStringMapBench(allocator: Allocator, writer: anytype) !void {
     var stats = try lib.StatsFilter(u64).init();
     var timer = std.time.Timer.start() catch @panic("need timer to work");
 
-    for (0..10) |_| {
+    for (0..20) |_| {
         const start = timer.read();
 
         for (tokens.items) |token| {
@@ -258,3 +258,16 @@ const lib = @import("zbench_lib");
 //   var 1672 and cost 10644 times
 // - most common
 //   const 10k, pub 7.5k, return 5.5k, try 5.3k, fn 3.3k, if 2.7k, error 2.1k, else 1.8k.
+
+// feb 28
+// Clearly we need to somehow control external factors, like cpu affinity and others:
+//
+// staticStringMap: wall avg = 3288.69 uS,  per item = 15.04 nS, miss/hit ratio = 3
+// staticStringMap: wall avg = 3200.31 uS,  per item = 14.63 nS, miss/hit ratio = 3
+// staticStringMap: wall avg = 2893.39 uS,  per item = 13.23 nS, miss/hit ratio = 3
+// staticStringMap: wall avg = 2786.88 uS,  per item = 12.74 nS, miss/hit ratio = 3
+// staticStringMap: wall avg = 2806.07 uS,  per item = 12.83 nS, miss/hit ratio = 3
+// staticStringMap: wall avg = 2824.52 uS,  per item = 12.91 nS, miss/hit ratio = 3
+// staticStringMap: wall avg = 2849.57 uS,  per item = 13.03 nS, miss/hit ratio = 3
+// staticStringMap: wall avg = 2833.65 uS,  per item = 12.96 nS, miss/hit ratio = 3
+// staticStringMap: wall avg = 2785.65 uS,  per item = 12.74 nS, miss/hit ratio = 3
