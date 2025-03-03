@@ -4,7 +4,7 @@
 const std = @import("std");
 const testing = std.testing;
 
-pub fn StatsFilter(comptime T: type) type {
+pub fn StatsFilter(comptime T: type, comptime capacity: usize) type {
     switch (@typeInfo(T)) {
         .int, .float => {},
         else => {
@@ -13,7 +13,6 @@ pub fn StatsFilter(comptime T: type) type {
     }
 
     return struct {
-        const capacity = 8;
         const Self = @This();
         samples: std.BoundedArray(T, capacity),
         sum: T,
@@ -38,8 +37,20 @@ pub fn StatsFilter(comptime T: type) type {
             }
         }
 
-        pub fn calc_average(self: *Self) f64 {
-            return @as(f64, @floatFromInt(self.sum)) / @as(f64, @floatFromInt(self.samples.slice().len));
+        pub fn get_stats(self: *Self) struct { mean: f64, sdev: f64, uncert: f64 } {
+            const count: f64 = @floatFromInt(self.samples.slice().len);
+            const mean = @as(f64, @floatFromInt(self.sum)) / count;
+            var sum_d_sqr: f64 = 0;
+            for (self.samples.slice()) |s| {
+                const delta = (@as(f64, @floatFromInt(s)) - mean);
+                sum_d_sqr += delta * delta;
+            }
+            const deviation = @sqrt(sum_d_sqr / count);
+            return .{
+                .mean = mean,
+                .sdev = deviation,
+                .uncert = deviation / @sqrt(count),
+            };
         }
 
         // Replace the sample that has the largest variance compared with
