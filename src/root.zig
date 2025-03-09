@@ -1,9 +1,22 @@
-/// Written by carlos.pizano@gmail.com
-///
-///
+// Copyright 2025 Carlos Pizano Uribe. All rights reserved.
+// Use of this source code is governed by the MIT license that can be
+// found in the LICENSE file.
+
 const std = @import("std");
 const testing = std.testing;
 
+// Helper function which should be equal to @abs(a - b) but will
+// not underflow for unsigned integers.
+fn absDiff(a: anytype, b: @TypeOf(a)) @TypeOf(a) {
+    return if (a > b) a - b else b - a;
+}
+
+//// StatsFilter
+///
+///  Takes any number of samples and produces
+///  mean, standar deviation and uncertainty for the N samples
+///  that mimize the standard deviation.
+///  N = |capacity|.
 pub fn StatsFilter(comptime T: type, comptime capacity: usize) type {
     switch (@typeInfo(T)) {
         .int, .float => {},
@@ -57,17 +70,19 @@ pub fn StatsFilter(comptime T: type, comptime capacity: usize) type {
         // the variance of the new sample.
         fn maybe_replace_sample(self: *Self, new_sample: T) void {
             const average = self.sum / self.samples.slice().len;
-            var nsd: T = @abs(average - new_sample);
+            var nsd: T = absDiff(average, new_sample);
             var nsd_ix: ?usize = null;
             for (self.samples.slice(), 0..) |s, i| {
-                const dev = @abs(average - s);
+                const dev = absDiff(average, s);
                 if (dev > nsd) {
                     nsd = dev;
                     nsd_ix = i;
                 }
             }
             if (nsd_ix) |ix| {
-                self.sum += new_sample - self.samples.slice()[ix];
+                // Found one, replace and adjust the sum.
+                self.sum -= self.samples.slice()[ix];
+                self.sum += new_sample;
                 self.samples.slice()[ix] = new_sample;
             }
         }

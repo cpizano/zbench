@@ -1,6 +1,7 @@
-/// Written by carlos.pizano@gmail.com
-///
-///
+// Copyright 2025 Carlos Pizano Uribe. All rights reserved.
+// Use of this source code is governed by the MIT license that can be
+// found in the LICENSE file.
+
 const Allocator = std.mem.Allocator;
 
 pub fn main() !void {
@@ -17,7 +18,7 @@ pub fn main() !void {
         _ = gpa.deinit();
     }
 
-    try stdout.print("benchmarking zig code.\n  toolchain : {}\n", .{builtin.zig_version});
+    try stdout.print("Zbench 0.1. Toolchain : {}\n", .{builtin.zig_version});
 
     if (builtin.mode != .ReleaseFast) {
         try stdout.print("!! not a release-fast build\n", .{});
@@ -208,7 +209,7 @@ pub fn staticStringMapBench(allocator: Allocator, writer: anytype) !void {
     var stats_filter = try lib.StatsFilter(u64, 16).init();
     var timer = std.time.Timer.start() catch @panic("need timer to work");
 
-    for (0..200) |_| {
+    for (0..200) |ix| {
         const start = timer.read();
 
         for (tokens.items) |token| {
@@ -220,7 +221,10 @@ pub fn staticStringMapBench(allocator: Allocator, writer: anytype) !void {
             }
         }
         const duration = timer.read() - start;
-        stats_filter.add_sample(duration);
+        if (ix > 5) {
+            // skip the first 5 runs.
+            stats_filter.add_sample(duration);
+        }
     }
 
     // The historgram, besides giving interesting data, blocks the compiler from optimizing
@@ -250,79 +254,3 @@ fn to_uSeconds(nS: f64) f64 {
 const std = @import("std");
 const lib = @import("zbench_lib");
 const builtin = @import("builtin");
-
-//  So far:
-//  zig build run -Doptimize=ReleaseFast
-//
-// benchmarking zig std library (3MiB of it):
-// staticStringMap: wall = 3923 uS,  per item = 17 nS, miss/hit = 3
-//
-// benchmarking zig std library:
-// staticStringMap: wall = 4340 uS,  per item = 19 nS, miss/hit = 3
-//
-// Notes
-// The current input dataset:
-// - zero hits:
-//   anyframe, async, await, export, resume, linksection, suspend and usingnamespace.
-// - less than 10:
-//   addrsspace, allowzero, noinline, nosuspend, opaque, threadlocal
-// - const vs var
-//   var 1672 and cost 10644 times
-// - most common
-//   const 10k, pub 7.5k, return 5.5k, try 5.3k, fn 3.3k, if 2.7k, error 2.1k, else 1.8k.
-
-// feb 28
-// Clearly we need to somehow control external factors, like cpu affinity and others:
-//
-// staticStringMap: wall avg = 3288.69 uS,  per item = 15.04 nS, miss/hit ratio = 3
-// staticStringMap: wall avg = 3200.31 uS,  per item = 14.63 nS, miss/hit ratio = 3
-// staticStringMap: wall avg = 2893.39 uS,  per item = 13.23 nS, miss/hit ratio = 3
-// staticStringMap: wall avg = 2786.88 uS,  per item = 12.74 nS, miss/hit ratio = 3
-// staticStringMap: wall avg = 2806.07 uS,  per item = 12.83 nS, miss/hit ratio = 3
-// staticStringMap: wall avg = 2824.52 uS,  per item = 12.91 nS, miss/hit ratio = 3
-// staticStringMap: wall avg = 2849.57 uS,  per item = 13.03 nS, miss/hit ratio = 3
-// staticStringMap: wall avg = 2833.65 uS,  per item = 12.96 nS, miss/hit ratio = 3
-// staticStringMap: wall avg = 2785.65 uS,  per item = 12.74 nS, miss/hit ratio = 3
-//
-// march 1
-//
-
-// ~/src/zbench main $ zig build -Doptimize=ReleaseFast  --zig-lib-dir /Users/cpu/src/zig/lib
-
-// ~/src/zbench main $ sudo cpulimit --verbose -l 100 zig-out/bin/zbench
-// ~/src/zbench main $ taskpolicy -c background zig-out/bin/zbench
-
-//  ~/src/zbench main $ zig build run -Doptimize=ReleaseFast
-// benchmarking zig std library:
-// staticStringMap:
-//   mean = 2405.54 uS,  per item = 11.00 nS
-//   stdev 410.06 uS, uncertainty 102.52 uS
-//
-// staticStringMap:
-//   mean = 2407.57 uS,  per item = 11.01 nS
-//   stdev 412.18 uS, uncertainty 103.05 uS
-//
-// staticStringMap:
-//   mean = 2446.21 uS,  per item = 11.18 nS
-//   stdev 476.07 uS, uncertainty 119.02 uS
-//
-// staticStringMap:
-//   mean = 2384.10 uS,  per item = 10.90 nS
-//   stdev 354.07 uS, uncertainty 88.52 uS
-//
-
-//  ~/src/zbench main $ zig build run -Doptimize=ReleaseFast  --zig-lib-dir /Users/cpu/src/zig/lib
-// benchmarking zig std library:
-// staticStringMap:
-//   mean = 2435.52 uS,  per item = 11.14 nS
-//   stdev 468.45 uS, uncertainty 117.11 uS
-//  ~/src/zbench main $ zig build run -Doptimize=ReleaseFast  --zig-lib-dir /Users/cpu/src/zig/lib
-//
-// staticStringMap:
-//   mean = 2280.83 uS,  per item = 10.43 nS
-//   stdev 23.28 uS, uncertainty 5.82 uS
-//  ~/src/zbench main $ zig build run -Doptimize=ReleaseFast  --zig-lib-dir /Users/cpu/src/zig/lib
-//
-// staticStringMap:
-//   mean = 2304.81 uS,  per item = 10.54 nS
-//   stdev 107.30 uS, uncertainty 26.83 uS

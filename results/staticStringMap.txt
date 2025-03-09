@@ -1,0 +1,107 @@
+
+What
+===========
+Benchmarking this pull request:
+optimize null lookup for StaticStringMap #22967
+https://github.com/ziglang/zig/pull/22967
+
+This is a minor optimization. When there is a missed lookup, it trades
+a data fectch +  test + branch for a test + branch. It should be strictly
+better, though a minor speedup.
+
+Metodology
+===========
+The staticStringMap is used in parsing Zig so an approximation of it but isolating
+only the direct operation seems a realistic test. The code uses the 48 keywords as
+the map keys, against 3 MiB of Zig code obtained by running
+
+  $ cat *.zig >> cat_lib_00.txt
+
+On the root directory of a Zig checkout.
+
+This input is then pre-filtered to remove
+ - operators
+ - comments
+ - quoted strings
+
+The resulting input is a combination of keywords and names of entities. The tally
+is 50346 keyword hits, versus 168378 misses which would be non-keyword entities.
+
+This lookup test is then run 200 times, with each wall time feed to a StatsFilter
+instance which keeps the 16 samples that minimize the standard deviation. These
+16 samples are averaged to determine the final wall time. 
+
+Challenges
+===========
+On MacOS there is no practical way for programs to control the scheduler to get
+repeatable measurements. Best one can do is constrain to the efficiency cores using
+this as a guide:
+https://eclecticlight.co/2022/10/20/making-the-most-of-apple-silicon-power-5-user-control/
+
+Results
+=========
+
+The optimization results in a net speedup of .2 to .5 nS per 47 nS lookup, or about 1%
+speedup for this particular setup. This is in line with expectations for a fetch (in the cache)
+vs a predicted branch for 3 GHz system. This number is calculated by using the lowest
+uncertainty measures from the 6 runs below.
+
+For more a more elaborated setup, one can expect some amount of cache trashing, in which case
+the optimization will yield larger gains.
+
+Raw data
+===========
+
+Results of 5 runs, with no foreground apps running except Ghostty and Finder.
+Apple M1 Pro, 32 MB RAM, MacOS 15.3.1
+
+Toolchain : 0.14.0-dev.3204+c2a3d8cbb
+Using taskpolicy -b
+
+#1
+new:
+  mean = 7159.48 uS,  per item = 32.73 nS
+  stdev 1406.87 uS, uncertainty 351.72 uS
+old:
+  mean = 10365.70 uS,  per item = 47.39 nS
+  stdev 6.55 uS, uncertainty 1.64 uS
+
+#2
+new:
+  mean = 6714.17 uS,  per item = 30.70 nS
+  stdev 848.12 uS, uncertainty 212.03 uS
+old:
+  mean = 10417.05 uS,  per item = 47.63 nS
+  stdev 95.33 uS, uncertainty 23.83 uS
+
+#3
+new:
+  mean = 10296.53 uS,  per item = 47.08 nS
+  stdev 2.36 uS, uncertainty 0.59 uS
+old:
+  mean = 10389.90 uS,  per item = 47.50 nS
+  stdev 5.96 uS, uncertainty 1.49 uS
+
+#4
+new:
+  mean = 10329.07 uS,  per item = 47.22 nS
+  stdev 29.56 uS, uncertainty 7.39 uS
+old:
+  mean = 10328.50 uS,  per item = 47.22 nS
+  stdev 4.72 uS, uncertainty 1.18 uS
+
+#5
+new:
+  mean = 10298.83 uS,  per item = 47.09 nS
+  stdev 7.91 uS, uncertainty 1.98 uS
+old:
+  mean = 10331.41 uS,  per item = 47.23 nS
+  stdev 9.44 uS, uncertainty 2.36 uS
+
+#6
+new:
+  mean = 5203.70 uS,  per item = 23.79 nS
+  stdev 75.16 uS, uncertainty 18.79 uS
+old:
+  mean = 10318.73 uS,  per item = 47.18 nS
+  stdev 6.12 uS, uncertainty 1.53 uS
